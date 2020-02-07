@@ -38,22 +38,23 @@ fun text2phrase(box:EditText):Phrase{
     val slises = arrayListOf<TextSlice>()
 
     val prefix = box.text.subSequence(0, box.selectionStart).toString()
-
+    var order = 0;
     if (prefix.isNotEmpty()) {
-        slises.add(TextSlice(prefix, false))
+        slises.add(TextSlice(++order,prefix, false))
+
     }
 
     val hidden = box.text.subSequence(box.selectionStart, box.selectionEnd).toString()
 
     if (hidden.isNotEmpty()) {
-        slises.add(TextSlice(hidden, true))
+        slises.add(TextSlice(++order, hidden, true))
     }
 
 
     val postfix = box.text.subSequence(box.selectionEnd, box.text.length).toString()
 
     if (postfix.isNotEmpty()) {
-        slises.add(TextSlice(postfix, false))
+        slises.add(TextSlice(++order,postfix, false))
     }
 
     return Phrase(slises)

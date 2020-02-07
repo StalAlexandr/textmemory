@@ -10,20 +10,51 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import androidx.core.view.children
+import androidx.room.Room
+import ru.alexandrstal.textmemory.dao.AppDatabase
 import ru.alexandrstal.textmemory.entity.Phrase
 
 import ru.alexandrstal.textmemory.entity.PhraseStorage
+import ru.alexandrstal.textmemory.entity.TextSlice
 import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
 
 
+
+
     private var currentPhrase: Phrase = Phrase(arrayListOf());
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+
+        Thread {
+
+            val db = AppDatabase.invoke(this)
+
+            /*
+              val db = Room.databaseBuilder(
+                  applicationContext,
+                  AppDatabase::class.java, "phrases.db"
+              ).build()
+
+  */
+
+
+            val list = db.PhraseDAO().selectAllPhrases()
+
+            list.forEach({db.PhraseDAO().deletePhrase(it)})
+
+
+            val p = Phrase(arrayListOf(TextSlice(0, "hello", false)))
+
+            db.PhraseDAO().insertPhrase(p)
+
+        }.start( )
 
         findViewById<Button>(R.id.onCheck).setOnClickListener{
             onCheckPhrase()
