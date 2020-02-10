@@ -11,6 +11,6 @@ data class TextSlice(
     val hidden: Boolean
 ){
     @PrimaryKey(autoGenerate = true)
-    var id:Int = 0
-    var phraseId:Int = 0
+    var id:Long = 0
+    var phraseId:Long = 0
 }

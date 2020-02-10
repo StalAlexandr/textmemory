@@ -1,82 +1,121 @@
 package ru.alexandrstal.textmemory
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
-import androidx.appcompat.app.AppCompatActivity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.children
-import androidx.room.Room
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.schedulers.Schedulers
 import ru.alexandrstal.textmemory.dao.AppDatabase
 import ru.alexandrstal.textmemory.entity.Phrase
-
-import ru.alexandrstal.textmemory.entity.PhraseStorage
-import ru.alexandrstal.textmemory.entity.TextSlice
 import kotlin.random.Random
+
+
+enum class PlayState{
+    NOTREADY, NOANSWER, INCORRECT, CORRECT
+}
 
 class MainActivity : AppCompatActivity() {
 
-
-
-
     private var currentPhrase: Phrase = Phrase(arrayListOf());
 
+    var list =  listOf<Phrase>()
+
+    val state = MutableLiveData<PlayState>()
+
+
+    @SuppressLint("CheckResult")
     override fun onCreate(savedInstanceState: Bundle?) {
 
+        state.postValue(PlayState.NOTREADY)
 
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        state.postValue(PlayState.NOTREADY)
+        Observable.just {
+            AppDatabase.invoke(this)
+        }.subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
 
-        Thread {
+                AppDatabase
+                    .invoke(this)
+                    .PhraseDAO()
+                    .loadAllPhrases()
+                    .observe(this, Observer { list = it; postInit()  })
+                state.postValue(PlayState.NOANSWER)
+            }
 
-            val db = AppDatabase.invoke(this)
+        val onCheckButton = findViewById<Button>(R.id.onCheck)
 
-            /*
-              val db = Room.databaseBuilder(
-                  applicationContext,
-                  AppDatabase::class.java, "phrases.db"
-              ).build()
+        val onNextButton = findViewById<Button>(R.id.onNext)
 
-  */
-
-
-            val list = db.PhraseDAO().selectAllPhrases()
-
-            list.forEach({db.PhraseDAO().deletePhrase(it)})
+        val onEditButton = findViewById<Button>(R.id.onEdit)
 
 
-            val p = Phrase(arrayListOf(TextSlice(0, "hello", false)))
 
-            db.PhraseDAO().insertPhrase(p)
-
-        }.start( )
-
-        findViewById<Button>(R.id.onCheck).setOnClickListener{
+        onCheckButton.setOnClickListener{
             onCheckPhrase()
         }
 
-        findViewById<Button>(R.id.onNext).setOnClickListener{
+        onNextButton.setOnClickListener{
             onNextPhrase()
         }
 
 
-        findViewById<Button>(R.id.onEdit).setOnClickListener{
+        onEditButton.setOnClickListener{
             onEditPhrase()
         }
 
 
+        val observer = Observer<PlayState> { state ->
 
-        if (!PhraseStorage.phrases.isEmpty()){
-            onNextPhrase()
+            when (state){
+                PlayState.NOTREADY -> {
+                    onCheckButton.isEnabled = false
+                    onEditButton.isEnabled = false
+                    onNextButton.isEnabled = false
+                }
+                PlayState.NOANSWER -> {
+                    onCheckButton.isEnabled = true
+                    onEditButton.isEnabled = true
+                    onNextButton.isEnabled = false
+                }
+                PlayState.INCORRECT -> {
+                    onCheckButton.isEnabled = false
+                    onEditButton.isEnabled = true
+                    onNextButton.isEnabled = true
+                }
+                PlayState.CORRECT -> {
+                    onCheckButton.isEnabled = false
+                    onEditButton.isEnabled = true
+                    onNextButton.isEnabled = true
+                }
+            }
         }
-        else{
-            onEditPhrase()
-        }
+
+        state.observe(this, observer)
+    }
+
+    private fun postInit() {
+       if (!list.isEmpty()){
+           onNextPhrase()
+           state.postValue(PlayState.NOANSWER)
+       }
+        else {
+           onEditPhrase()
+       }
 
     }
 
@@ -84,34 +123,43 @@ class MainActivity : AppCompatActivity() {
         startActivity(Intent(this, PhraseCreate::class.java))
     }
 
+    @SuppressLint("SetTextI18n")
     private fun onCheckPhrase() {
 
         val flex = findViewById<ViewGroup>(R.id.flexboxlayout)
-        val myAnswer = ( flex.children.firstOrNull({it is EditText}) as EditText?)?.text.toString()
+
+        val textBox = flex.children.firstOrNull({it is EditText}) as EditText
+
+
+        val myAnswer =  textBox.text.toString()
         val answer = currentPhrase.slices.firstOrNull({it.hidden})?.text.toString()
 
 
-        Log.i("ANSWER", "$myAnswer $answer")
-        Log.i("ANSWER", "${myAnswer.trim().contentEquals(answer.trim())}")
-
-
+        if (myAnswer.trim().contentEquals(answer.trim())){
+            textBox.setTextColor(Color.GREEN)
+            state.postValue(PlayState.CORRECT)
+        }
+        else {
+            textBox.setTextColor(Color.RED)
+            textBox.setText("$myAnswer -> $answer")
+            state.postValue(PlayState.INCORRECT)
+        }
     }
 
     private fun onNextPhrase() {
         val flex = findViewById<ViewGroup>(R.id.flexboxlayout)
         flex.removeAllViews()
 
-        val rnd = Random(5).nextInt(0, PhraseStorage.phrases.size);
+        val rnd = Random.nextInt(0,list.size);
 
-        currentPhrase = PhraseStorage.phrases[rnd]
-
+        currentPhrase = list[rnd]
 
         phraseToView(this, currentPhrase).forEach { flex.addView(it) }
+        state.postValue(PlayState.NOANSWER)
 
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        // Inflate the menu; this adds items to the action bar if it is present.
         menuInflater.inflate(R.menu.menu_main, menu)
         return true
     }
@@ -126,6 +174,16 @@ class MainActivity : AppCompatActivity() {
 
 
 
-
+fun rmAll(){
+    Thread {
+        AppDatabase
+            .invoke(this).PhraseDAO().selectAllPhrases().forEach {
+                AppDatabase
+                    .invoke(this).PhraseDAO().deletePhrase(it)
+            }
+    }.start()
+}
 
 }
+
+

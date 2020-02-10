@@ -1,5 +1,6 @@
 package ru.alexandrstal.textmemory.dao
 
+import androidx.lifecycle.LiveData
 import androidx.room.*
 import ru.alexandrstal.textmemory.entity.EmbPhrase
 import ru.alexandrstal.textmemory.entity.Phrase
@@ -10,12 +11,22 @@ abstract class PhraseDAO {
 
  //   @Transaction
     fun insertPhrase(phrase: Phrase){
-        insertPhrase(phrase.emb)
-
-        val phraseId = phrase.emb.id
+        val phraseId =  insertPhrase(phrase.emb)
         phrase.slices.forEach{it.phraseId = phraseId
             insertSlice(it)
         }
+    }
+
+
+    fun updatePhrase(phrase: Phrase){
+
+
+        selectSlicesForPhrase(phrase.id()).forEach {deleteSlice(it)}
+
+        phrase.slices.forEach{it.phraseId = phrase.id()
+            insertSlice(it)
+        }
+
     }
 
 
@@ -30,16 +41,26 @@ abstract class PhraseDAO {
 
 
 
+
+    @Transaction
+    @Query("SELECT * FROM EmbPhrase")
+    abstract fun loadAllPhrases(): LiveData<List<Phrase>>
+
     @Transaction
     @Query("SELECT * FROM EmbPhrase")
     abstract fun selectAllPhrases(): List<Phrase>
 
 
-    @Insert
-    abstract fun insertPhrase(emb:EmbPhrase)
+    @Transaction
+    @Query("SELECT * FROM TextSlice where phraseId = :phraseId  ")
+    abstract fun selectSlicesForPhrase(phraseId:Long): List<TextSlice>
+
 
     @Insert
-    abstract fun insertSlice(slice: TextSlice)
+    abstract fun insertPhrase(emb:EmbPhrase):Long
+
+    @Insert
+    abstract fun insertSlice(slice: TextSlice):Long
 
 
     @Delete
@@ -47,6 +68,5 @@ abstract class PhraseDAO {
 
     @Delete
     abstract fun deleteSlice(it: TextSlice)
-
 
 }

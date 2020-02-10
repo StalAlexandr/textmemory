@@ -18,5 +18,7 @@ data class Phrase(
     @Embedded
     var emb: EmbPhrase = EmbPhrase()
 
+    fun id():Long = emb.id
+
 }
 
